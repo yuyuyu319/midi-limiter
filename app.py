@@ -38,7 +38,7 @@ HTML_PAGE = """
 <body>
     <div class="card">
         <h1>MIDI Limiter</h1>
-        <p class="subtitle">ベロシティの最大・最小値を、安全な範囲に制限する。</p>
+        <p class="subtitle">ベロシティの最大・最小値を制限する。</p>
         <form action="/process" method="post" enctype="multipart/form-data">
             <div style="margin-bottom: 25px; border: 2px dashed #334155; padding: 20px; border-radius: 12px;">
                 <input type="file" name="midi_file" accept=".mid,.midi" required style="color: #94a3b8;">
