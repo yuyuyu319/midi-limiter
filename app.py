@@ -49,17 +49,17 @@ HTML_PAGE = """
 <body>
     <div class="card">
         <h1>MIDI Limiter</h1>
-        <p class="subtitle">ベロシティを制限し、演奏の破綻を防ぐ。</p>
+        <p class="subtitle">ベロシティの最大・最小値を、安全な範囲に制限する。</p>
         <form action="/process" method="post" enctype="multipart/form-data">
             <div style="margin-bottom: 25px; border: 2px dashed #334155; padding: 20px; border-radius: 12px;">
                 <input type="file" id="file-input" name="midi_file" accept=".mid,.midi" required style="color: #94a3b8;">
             </div>
             <div class="form-group">
-                <label>最小ベロシティ (Min)</label>
+                <label>最小ベロシティ (Min: 1-127)</label>
                 <input type="number" name="min_v" id="min_v" value="40" min="1" max="127">
             </div>
             <div class="form-group">
-                <label>最大ベロシティ (Max)</label>
+                <label>最大ベロシティ (Max: 1-127)</label>
                 <input type="number" name="max_v" id="max_v" value="100" min="1" max="127">
             </div>
 
@@ -85,14 +85,14 @@ HTML_PAGE = """
     </div>
 
     <div class="content-section">
-        <h2>視覚的なダイナミクス制御</h2>
-        <p>MIDIリミッターは、設定した範囲外の音を強制的に丸め込みます。本ツールのプレビュー機能では、上段にノートの音程、下段にベロシティの Before/After を表示。横にスクロールして楽曲全体の制限状況を確認できます。</p>
+        <h2>なぜMIDIリミッターが必要なのか？</h2>
+        <p>強すぎる音を抑え、弱すぎる音を底上げすることで、音源ソフトのポテンシャルを最大限に引き出し、ミックスを安定させます。ベロシティが最大値（127）に達した際の不自然な音色変化を防ぐのにも有効です。</p>
     </div>
 
     <div class="policy-section">
         <h2>プライバシーポリシー</h2>
-        <p><strong>データ処理：</strong>アップロードされたMIDIファイルは保存されず、メモリ内で即座に処理・返送されます。プライバシーは完全に守られます。</p>
-        <p><strong>広告配信：</strong>当サイトではGoogle AdSense等により広告を配信する場合があります。</p>
+        <p><strong>データ処理：</strong>アップロードされたMIDIファイルはサーバーに保存されず、メモリ内で即座に処理・返送されます。プライバシーは完全に守られます。</p>
+        <p><strong>広告配信：</strong>当サイトではGoogle AdSense等の第三者配信事業者がCookieを利用して広告を配信する場合があります。</p>
     </div>
     <div class="footer-copy">&copy; 2026 MIDI Limiter. All rights reserved.</div>
 
@@ -139,13 +139,10 @@ HTML_PAGE = """
 
             notes.forEach((n, i) => {
                 const x = i * barWidth;
-                
-                // 上段: ピアノロール
                 const yPitch = pianoRollHeight - (n.pitch / 127) * pianoRollHeight;
                 ctx.fillStyle = '#334155';
                 ctx.fillRect(x, yPitch, barWidth - 2, 4);
 
-                // 下段: ベロシティ
                 const laneBaseY = canvas.height;
                 const hOrig = (n.vel / 127) * velocityLaneHeight;
                 ctx.fillStyle = '#475569';
@@ -174,17 +171,26 @@ HTML_PAGE = """
 </html>
 """
 
+# --- MIDI処理ロジック ---
 def process_limiter(midi_file_stream, min_v, max_v):
-    midi_file_stream.seek(0); input_data = io.BytesIO(midi_file_stream.read())
-    try: mid = mido.MidiFile(file=input_data)
-    except: return None
+    midi_file_stream.seek(0)
+    input_data = io.BytesIO(midi_file_stream.read())
+    try:
+        mid = mido.MidiFile(file=input_data)
+    except:
+        return None
     for track in mid.tracks:
         for msg in track:
             if msg.type == 'note_on' and msg.velocity > 0:
-                if msg.velocity < min_v: msg.velocity = min_v
-                elif msg.velocity > max_v: msg.velocity = max_v
+                if msg.velocity < min_v:
+                    msg.velocity = min_v
+                elif msg.velocity > max_v:
+                    msg.velocity = max_v
                 msg.velocity = max(1, min(127, msg.velocity))
-    output = io.BytesIO(); mid.save(file=output); output.seek(0); return output
+    output = io.BytesIO()
+    mid.save(file=output)
+    output.seek(0)
+    return output
 
 @app.route('/')
 def index():
@@ -197,8 +203,8 @@ def process():
     file = request.files.get('midi_file')
     if not file: return "File missing", 400
     try:
-        min_v = int(request.form.get('min_v', 1))
-        max_v = int(request.form.get('max_v', 127))
+        min_v = int(request.form.get('min_v', 40))
+        max_v = int(request.form.get('max_v', 100))
     except ValueError: return "Invalid values", 400
     processed_midi = process_limiter(file, min_v, max_v)
     return send_file(processed_midi, as_attachment=True, download_name="limited.mid", mimetype='audio/midi')
